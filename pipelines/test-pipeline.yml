@@ -1,0 +1,52 @@
+---
+resource_types:
+  - name: slack-notification
+    type: docker-image
+    source:
+      repository: cfcommunity/slack-notification-resource
+
+resources:
+  - name: spring-petclinic
+    type: git
+    source:
+      uri: ((spring-petclinic-repo-uri))
+      branch: master
+  - name: notify
+    type: slack-notification
+    source:
+      url: ((slack-webhook-url))
+
+jobs:
+  - name: maven-test
+    public: true
+    serial: true
+    plan:
+      - get: spring-petclinic
+        trigger: true
+
+      - task: mvn test
+        config:
+          platform: linux
+
+          image_resource:
+            type: docker-image
+            source: 
+              repository: maven
+              tag: 3-jdk-11-openj9
+
+          inputs:
+            - name: spring-petclinic
+
+          run:
+            path: spring-petclinic/unit-tests/unit-test.sh
+
+        on_failure:
+          put: notify
+          params:
+            text: "Job 'maven-test' failed"
+            silent: true
+        on_success:
+          put: notify
+          params:
+            text: "Job 'maven-test' succeeded"
+            silent: true
