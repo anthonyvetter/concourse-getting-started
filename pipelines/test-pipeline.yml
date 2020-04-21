@@ -11,6 +11,11 @@ resources:
     source:
       uri: ((spring-petclinic-repo-uri))
       branch: master
+  - name: test-scripts
+    type: git
+    source:
+      uri: ((test-scripts-repo-uri))
+      branch: master
   - name: notify
     type: slack-notification
     source:
@@ -23,8 +28,8 @@ jobs:
     plan:
       - get: spring-petclinic
         trigger: true
-
-      - task: mvn test
+      - get: test-scripts
+      - task: mvn-test
         config:
           platform: linux
 
@@ -36,9 +41,10 @@ jobs:
 
           inputs:
             - name: spring-petclinic
+            - name: test-scripts
 
           run:
-            path: spring-petclinic/unit-tests/unit-test.sh
+            path: test-scripts/test-scripts/unit-test.sh
 
         on_failure:
           put: notify
