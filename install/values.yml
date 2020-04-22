@@ -7,9 +7,8 @@ concourse:
       enabled: true
       teams:
         - main
-        - test
     auth:
       mainTeam:
-        localUser: "av"
+        localUser: "test"
 secrets:  
-  localUsers: "av:password"
+  localUsers: "test:test"
