@@ -1,0 +1,15 @@
+concourse:
+  web:
+    clusterName: concourse-test
+    bindIp: 0.0.0.0
+    bindPort: 8080
+    localAuth:
+      enabled: true
+      teams:
+        - main
+        - test
+    auth:
+      mainTeam:
+        localUser: "av"
+secrets:  
+  localUsers: "av:password"
