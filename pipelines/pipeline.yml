@@ -1,5 +1,15 @@
 ---
 ##########################################################################################
+## - This is a sample Concourse pipeline
+## - Essentially what is does is:
+##   1. Watches a 'test' branch of a GitHub repository
+##   2. When a new commit is detected, run some tests (as shell scripts, in this case)
+##   3. Notify the developer of the status of each test via Slack
+## - When ready, the developer can then open a PR for a 'master' branch, and the developer 
+##   team can then handle that in whatever way they want
+##########################################################################################
+
+##########################################################################################
 ## - resource_types list the types of resources used in a pipeline
 ## - In this pipeline, we are using resource_types git, and slack-notification
 ## - Git is a core resource type, so it is not required to be listed
@@ -122,12 +132,12 @@ jobs:
         on_failure:
           put: slack
           params:
-            text: "Job 'maven-test' failed"
+            text: "Task 'run-mvn-test' failed"
             silent: true
         on_success:
           put: slack
           params:
-            text: "Job 'maven-test' succeeded"
+            text: "Task 'run-mvn-test' succeeded"
             silent: true
 
 ##########################################################################################
@@ -149,7 +159,7 @@ jobs:
     serial: true
     plan:
       - get: spring-petclinic
-        # trigger: true
+        trigger: true
         passed: 
           - maven-test
       - get: test-scripts
@@ -173,10 +183,10 @@ jobs:
         on_failure:
           put: slack
           params:
-            text: "Job 'developer-tests' failed"
+            text: "Taks 'run-developer-tests' failed"
             silent: true
         on_success:
           put: slack
           params:
-            text: "Job 'developer-tests' succeeded"
+            text: "Task 'run-developer-tests' succeeded"
             silent: true
