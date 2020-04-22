@@ -1,0 +1,182 @@
+---
+##########################################################################################
+## - resource_types list the types of resources used in a pipeline
+## - In this pipeline, we are using resource_types git, and slack-notification
+## - Git is a core resource type, so it is not required to be listed
+## - slack-notofication is a custom, community resource so it must be listed explicitly
+## - Additional resource_types can be found here: https://resource-types.concourse-ci.org
+##########################################################################################
+resource_types:
+  - name: slack-notification
+    type: docker-image
+    source:
+      repository: cfcommunity/slack-notification-resource
+
+##########################################################################################
+## - The resources section defined the resources used in this pipeline
+## - There are two git resources: one for the app, and the other for the test scripts
+## - Then there is the slack-notification resource called out in the resource_type section
+## - Each resource type has its own set of attributes, required and optional
+## - For information on these attributes: https://resource-types.concourse-ci.org
+##########################################################################################
+resources:
+##########################################################################################
+## - Here the resource referring to the application is defined
+## - It is a public repo and we are only going to be cloning it
+##   so no credentials, keys, or access tokes are required
+##########################################################################################
+  - name: spring-petclinic
+    type: git
+    source:
+      uri: ((spring-petclinic-repo-uri))
+      branch: test
+##########################################################################################
+## - Here is the same definition for the git repo containing the test-scripts
+##########################################################################################  
+  - name: test-scripts
+    type: git
+    source:
+      uri: ((test-scripts-repo-uri))
+      branch: master
+##########################################################################################
+## - And for the slack resource
+## - In this case, since Concourse will just be posting, only the webhook URL is required
+##########################################################################################
+  - name: slack
+    type: slack-notification
+    source:
+      url: ((slack-webhook-url))
+
+##########################################################################################
+## - Now we define jobs (big green boxes in the Concourse UI)
+## - Besides some meta tasks upfront, jobs are a collection of Tasks
+## - This job includes just one task, running a test script
+## - And posting to Slack when the job starts, and the outcome when it finishes
+## - For larger pipelines, tasks can be defined in separate YAML files
+##   then referenced in the job
+##   but that is a trade off in system complexity for pipeline readability
+##   It is important as you build your pipelines to understand that tradeoff
+##   and when it makes sense to refactor to a new method
+##########################################################################################
+jobs:
+
+##########################################################################################
+## - Here an individual job is defined
+## - name: The name of the job. Can be anything but should be descriptive enough for
+##         someone to understand what this job is doing without reading the YAML
+## - public: By default, false. This means the pipeline nor its build logs are visible
+##           to anyone outside the Concourse team the job was created in. If true
+##           the pipeline and logs will be visible to any user in Concourse
+## - serial: By default, false. All jobs run in parallel. Use this to limit Concourse
+##           to one build at a time 
+## - plan: Items the job should do prior to running any tasks. 
+## - plan.get: get the resources by name, defined in the resources section.
+## - plan.put: "put" to a named resource. In this case a notification to Slack. Params
+##             are specific to the recource_type
+##########################################################################################
+  - name: maven-test
+    public: true
+    serial: true
+    plan:
+      - get: spring-petclinic
+        trigger: true
+      - get: test-scripts
+      - put: slack
+        params:
+          text: "starting job 'maven-test'"
+          silent: true
+
+##########################################################################################
+## - tasks do "one thing"
+## - It is possible to effectively put an entire pipeline into one task using scripts
+##   then using a task to run that script, but that is not the "Concourse-y" way.
+## - In this taks, we are running our test-script resource which will run 'mvn test'
+##   on our spring-petclinic app, inside a Maven container pulled from Docker Hub. Then
+##   we are sending a notification to Slack on the status of the job.
+## - Tasks should be limited for troubleshooting and management
+## - config: Where to run the task (in what container), resources used (inputs), and 
+##           commands to run
+## - on_failure: If the task fails, what should Concourse do?
+## - on_success: If the task succeeds, what should Concourse do?
+##########################################################################################
+      - task: run-mvn-test
+        config:
+          platform: linux
+          image_resource:
+            type: docker-image
+            source: 
+              repository: maven
+              tag: 3-jdk-11-openj9
+          inputs:
+            - name: spring-petclinic
+            - name: test-scripts
+
+##########################################################################################
+## - By default, Concourse will import resources within the container to the path
+##   /$pwd/$INPUT_NAME. 
+## - All commands will be run starting from $pwd. So to run the script, start the path 
+##   from the input name. Then the normal directory structure of the resource imported.
+##########################################################################################
+          run:
+            path: test-scripts/test-scripts/unit-test.sh
+        on_failure:
+          put: slack
+          params:
+            text: "Job 'maven-test' failed"
+            silent: true
+        on_success:
+          put: slack
+          params:
+            text: "Job 'maven-test' succeeded"
+            silent: true
+
+##########################################################################################
+## - Here we are defining another job. 
+## - This job also includes a single task which als runs a test script
+## - In this case, it is not necessary to define a separate job just to run 
+##   the same type of task as the previous job
+## - It would be better to just include this task along with the previous task, or
+##   integrate the two scripts together so it could be run out of the same task.
+## - These are examples of segmentation in Concourse. How jobs and tasks, as well as the
+##   actions performed in those tasks are segmented and defined is up to the pipeline builder.
+##   Each method has its own tradeoffs. 
+## - This job is practically identical to the one above, except for:
+## - passed: Here we tell this job only to start on the successful completion of another job.
+##           In this case, the maven-test job defined above.
+##########################################################################################
+  - name: developer-tests
+    public: true
+    serial: true
+    plan:
+      - get: spring-petclinic
+        # trigger: true
+        passed: 
+          - maven-test
+      - get: test-scripts
+      - put: slack
+        params:
+          text: "starting job 'developer-tests'"
+          silent: true
+      - task: run-developer-tests
+        config:
+          platform: linux
+          image_resource:
+            type: docker-image
+            source: 
+              repository: maven
+              tag: 3-jdk-11-openj9
+          inputs:
+            - name: spring-petclinic
+            - name: test-scripts
+          run:
+            path: test-scripts/test-scripts/developer-unit-test-01.sh
+        on_failure:
+          put: slack
+          params:
+            text: "Job 'developer-tests' failed"
+            silent: true
+        on_success:
+          put: slack
+          params:
+            text: "Job 'developer-tests' succeeded"
+            silent: true
