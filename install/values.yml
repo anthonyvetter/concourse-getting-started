@@ -1,14 +1,19 @@
+##########################################################################
+## - Some useful default values to modify the install
+## - None of these are required to be changed as part of this guideß
+## - For a full list of all attributes go to
+##   https://github.com/concourse/concourse-chart/blob/master/values.yaml
+##########################################################################
 concourse:
   web:
-    clusterName: concourse-test
-    bindIp: 0.0.0.0
-    bindPort: 8080
+    clusterName: concourse-test   ## a name for your cluster. can be anything
+    bindIp: 0.0.0.0               ## bindport for the web service. currently expecting to be exposed to localhost
+    bindPort: 8080                ## once exposed, the service will be available outside the cluster at localhost:8080 
     localAuth:
-      enabled: true
       teams:
-        - main
+        - main                    ## team names. experiment with teams and RBAC
     auth:
       mainTeam:
-        localUser: "test"
+        localUser: "test"         ## adds user "test" to the "main" team
 secrets:  
-  localUsers: "test:test"
+  localUsers: "test:test"         ## comma separated list of username:password for local auth users
